@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PDF Tool</title>
+<title>PDF Tool – FINAL</title>
 
 <!-- LIB -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -12,7 +12,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script src="https://unpkg.com/mammoth/mammoth.browser.min.js"></script>
 
-<link rel="icon" href="https://lh3.googleusercontent.com/a/ACg8ocKmXTXh7YnKdycDCZXMBH_5D79UE14STXrbOZYS0It0WWTTTFf2=s288-c-no">
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+</script>
 
 <style>
 *{box-sizing:border-box;font-family:system-ui}
@@ -27,8 +30,6 @@ background:rgba(255,255,255,.12);
 backdrop-filter:blur(14px);
 border-radius:22px;padding:20px
 }
-.logo{display:flex;justify-content:center;margin-bottom:12px}
-.logo img{height:70px;border-radius:18px}
 .tabs{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
 .tabs button{
 padding:10px 18px;border-radius:20px;border:none;
@@ -53,7 +54,6 @@ grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
 gap:14px
 }
 .file{
-position:relative;
 background:rgba(0,0,0,.35);
 border-radius:12px;padding:10px
 }
@@ -64,18 +64,6 @@ object-fit:cover;border-radius:8px
 .file-name{
 margin-top:6px;font-size:13px;
 text-align:center;word-break:break-all
-}
-.menu{
-position:absolute;inset:0;
-background:rgba(0,0,0,.65);
-display:none;align-items:center;
-justify-content:center;gap:10px;
-border-radius:12px
-}
-.file.active .menu{display:flex}
-.menu button{
-border:none;padding:8px 12px;
-border-radius:8px;cursor:pointer
 }
 .actions{
 margin-top:18px;
@@ -88,251 +76,310 @@ border-radius:14px;border:none;
 background:linear-gradient(135deg,#00c6ff,#0072ff);
 color:#fff;font-weight:600;cursor:pointer
 }
-.reset{background:linear-gradient(135deg,#ff416c,#ff4b2b)}
-.preview{
+.loading{
 position:fixed;inset:0;
-background:rgba(0,0,0,.85);
-display:none;align-items:center;
-justify-content:center;z-index:99
+background:rgba(0,0,0,.6);
+display:none;align-items:center;justify-content:center;
+z-index:999
 }
-.preview img,.preview iframe{
-max-width:92%;max-height:92%;
-background:#fff
+.spinner{
+width:60px;height:60px;
+border:6px solid #ddd;
+border-top-color:#00c6ff;
+border-radius:50%;
+animation:spin 1s linear infinite
 }
-input.rename{
-width:100%;padding:6px;
-border-radius:6px;border:none;
-background:#111;color:#fff;
-text-align:center;font-size:14px
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* WORD */
+.word-content{
+font-family:Arial;
+font-size:12pt;
+line-height:1.4
+}
+.word-content table{
+width:100%;
+border-collapse:collapse
+}
+.word-content td,
+.word-content th{
+border:1px solid #444;
+padding:4px
 }
 </style>
 </head>
 
 <body>
+
+<div class="loading" id="loading"><div class="spinner"></div></div>
+
+<!-- ===== MAIN APP ===== -->
 <div class="app">
 
-<div class="logo">
-<img src="https://lh3.googleusercontent.com/a/ACg8ocKmXTXh7YnKdycDCZXMBH_5D79UE14STXrbOZYS0It0WWTTTFf2=s288-c-no">
-</div>
-
 <div class="tabs">
-<button class="active" onclick="switchTab(0)">Ảnh ➜ PDF</button>
-<button onclick="switchTab(1)">PDF ➜ Ảnh</button>
-<button onclick="switchTab(2)">Word ➜ PDF</button>
+<button class="active" onclick="switchTab(0,this)">Ảnh → PDF</button>
+<button onclick="switchTab(1,this)">PDF → Ảnh</button>
+<button onclick="switchTab(2,this)">Word → PDF</button>
 </div>
 
-<!-- IMAGE -->
+<!-- IMAGE → PDF -->
 <div class="panel active">
 <label class="upload">
 <input type="file" id="imgInput" accept="image/*" multiple>
-📸 Chọn ảnh
+📸 Chọn hoặc kéo ảnh
 </label>
 <div class="actions">
-<button onclick="convertImgSingle()">📄 Gộp ảnh → 1 PDF</button>
-<button onclick="convertImgMulti()">📑 Mỗi ảnh → 1 PDF</button>
-<button onclick="download()">Tải</button>
-<button class="reset" onclick="resetAll()">Quay lại</button>
+<button onclick="convertImgSingle()">📄 Gộp ảnh → PDF</button>
+<button onclick="convertImgMulti()">📑 Mỗi ảnh → PDF</button>
+<button onclick="download()">⬇ Tải</button>
 </div>
-<div class="grid"></div>
+<div class="grid" id="imgGrid"></div>
 </div>
 
-<!-- PDF -->
+<!-- PDF → IMAGE -->
 <div class="panel">
 <label class="upload">
-<input type="file" id="pdfInput" accept="application/pdf">
+<input type="file" id="pdfInput" accept="application/pdf" multiple>
 📄 Chọn PDF
 </label>
 <div class="actions">
-<button onclick="compressPdf()">🗜 Nén PDF</button>
 <button onclick="convertPdf()">🖼 PDF → Ảnh</button>
-<button onclick="download()">Tải</button>
-<button class="reset" onclick="resetAll()">Quay lại</button>
+<button onclick="download()">⬇ Tải</button>
 </div>
-<div class="grid"></div>
+<div class="grid" id="pdfGrid"></div>
 </div>
 
-<!-- WORD -->
+<!-- WORD → PDF -->
 <div class="panel">
 <label class="upload">
 <input type="file" id="wordInput" accept=".doc,.docx">
 📝 Chọn Word
 </label>
 <div class="actions">
-<button onclick="convertWord()">Chuyển PDF</button>
-<button onclick="download()">Tải</button>
-<button class="reset" onclick="resetAll()">Quay lại</button>
+<button onclick="convertWord()">📄 Chuyển PDF</button>
+<button onclick="download()">⬇ Tải</button>
 </div>
-<div class="grid"></div>
-</div>
-
+<div class="grid" id="wordGrid"></div>
 </div>
 
-<div class="preview" id="preview" onclick="this.style.display='none'"></div>
+</div>
+
+<hr>
+
+<!-- ===== PDF PAGE 2 AUTO ===== -->
+<div class="app">
+<h2 style="text-align:center">🖼 PDF → JPG (Trang 2 • Auto tải)</h2>
+
+<label class="upload" id="pdfPage2Drop">
+<input type="file" id="pdfPage2Input" accept="application/pdf" multiple>
+📄 Kéo hoặc chọn PDF
+</label>
+
+<div class="grid" id="pdfPage2Grid"></div>
+</div>
 
 <script>
 const { jsPDF } = window.jspdf;
-let files=[];
+let results=[], pdfPage2Results=[];
 
-/* ===== UTIL ===== */
-const isMobile=()=>/Android|iPhone|iPad/i.test(navigator.userAgent);
-const getActiveGrid=()=>document.querySelector(".panel.active .grid");
-
-/* ===== TAB ===== */
-function switchTab(i){
-document.querySelectorAll(".tabs button").forEach((b,x)=>b.classList.toggle("active",x===i));
-document.querySelectorAll(".panel").forEach((p,x)=>p.classList.toggle("active",x===i));
-resetAll();
+/* COMMON */
+function showLoading(s){
+loading.style.display=s?"flex":"none";
 }
-
-/* ===== RESET ===== */
-function resetAll(){
-files=[];
+function switchTab(i,btn){
+document.querySelectorAll(".tabs button").forEach(b=>b.classList.remove("active"));
+btn.classList.add("active");
+document.querySelectorAll(".panel").forEach((p,j)=>p.classList.toggle("active",i===j));
+results=[];
 document.querySelectorAll(".grid").forEach(g=>g.innerHTML="");
-imgInput.value=pdfInput.value=wordInput.value="";
 }
 
-/* ===== LOAD ===== */
-imgInput.onchange=()=>loadFiles(imgInput.files,"image");
-pdfInput.onchange=()=>loadFiles(pdfInput.files,"pdf");
-wordInput.onchange=()=>loadFiles(wordInput.files,"word");
-
-function loadFiles(list,type){
-files=[...list].map(f=>({
-name:f.name,
-blob:f,
-type,
-url:type==="image"?URL.createObjectURL(f):null
-}));
-render();
-}
-
-/* ===== RENDER (FIX HIỂN THỊ) ===== */
-function render(){
-const grid=getActiveGrid();
-grid.innerHTML="";
-files.forEach((f,i)=>{
-const d=document.createElement("div");
-d.className="file";
-d.innerHTML=`
-<img src="${f.url||'https://cdn-icons-png.flaticon.com/512/337/337946.png'}">
-<div class="file-name"><span id="n${i}">${f.name}</span></div>
-<div class="menu">
-<button onclick="view(event,${i})">👁</button>
-<button onclick="rename(event,${i})">✏️</button>
-<button onclick="del(event,${i})">🗑</button>
+/* IMAGE PREVIEW */
+imgInput.onchange=()=>{
+imgGrid.innerHTML="";
+[...imgInput.files].forEach(f=>{
+imgGrid.innerHTML+=`
+<div class="file">
+<img src="${URL.createObjectURL(f)}">
+<div class="file-name">${f.name}</div>
 </div>`;
-d.onclick=()=>d.classList.toggle("active");
-grid.appendChild(d);
+});
+};
+
+/* LOAD IMAGE */
+function loadImg(file){
+return new Promise(r=>{
+const img=new Image();
+img.onload=()=>r(img);
+img.src=URL.createObjectURL(file);
 });
 }
 
-/* ===== RENAME ===== */
-function rename(e,i){
-e.stopPropagation();
-const s=document.getElementById("n"+i);
-s.outerHTML=`<input class="rename" value="${files[i].name}"
-onblur="save(${i},this.value)"
-onkeydown="if(event.key==='Enter')this.blur()" autofocus>`;
-}
-function save(i,v){ if(v.trim()) files[i].name=v.trim(); render(); }
-
-/* ===== DELETE ===== */
-function del(e,i){ e.stopPropagation(); files.splice(i,1); render(); }
-
-/* ===== VIEW ===== */
-function view(e,i){
-e.stopPropagation();
-preview.innerHTML=files[i].url
-?`<img src="${files[i].url}">`
-:`<iframe src="${URL.createObjectURL(files[i].blob)}"></iframe>`;
-preview.style.display="flex";
-}
-
-/* ===== IMAGE → 1 PDF ===== */
+/* IMAGE → PDF */
 async function convertImgSingle(){
-const pdf=new jsPDF();
-for(let i=0;i<files.length;i++){
-const img=new Image();img.src=files[i].url;
-await img.decode();
-if(i>0) pdf.addPage();
-pdf.addImage(img,"JPEG",10,10,190,277,"","FAST");
+showLoading(true);
+const pdf=new jsPDF("p","mm","a4");
+const pageW=pdf.internal.pageSize.getWidth();
+const pageH=pdf.internal.pageSize.getHeight();
+const margin=10;
+let first=true;
+
+for(const f of imgInput.files){
+const img=await loadImg(f);
+const ir=img.width/img.height;
+const pr=(pageW-margin*2)/(pageH-margin*2);
+let w,h;
+if(ir>pr){w=pageW-margin*2;h=w/ir;}
+else{h=pageH-margin*2;w=h*ir;}
+const x=(pageW-w)/2;
+const y=(pageH-h)/2;
+if(!first) pdf.addPage();
+pdf.addImage(img,"JPEG",x,y,w,h);
+first=false;
 }
-files=[{name:"merged.pdf",blob:pdf.output("blob")}];
-render();
+results=[{blob:pdf.output("blob"),name:"images.pdf"}];
+showLoading(false);
 }
 
-/* ===== IMAGE → MANY PDF ===== */
 async function convertImgMulti(){
-const out=[];
-for(const f of files){
-const img=new Image();img.src=f.url;
-await img.decode();
-const pdf=new jsPDF();
-pdf.addImage(img,"JPEG",10,10,190,277,"","FAST");
-out.push({name:f.name.replace(/\..+/,"")+".pdf",blob:pdf.output("blob")});
+showLoading(true);
+results=[];
+for(const f of imgInput.files){
+const pdf=new jsPDF("p","mm","a4");
+const pageW=pdf.internal.pageSize.getWidth();
+const pageH=pdf.internal.pageSize.getHeight();
+const margin=10;
+const img=await loadImg(f);
+const ir=img.width/img.height;
+const pr=(pageW-margin*2)/(pageH-margin*2);
+let w,h;
+if(ir>pr){w=pageW-margin*2;h=w/ir;}
+else{h=pageH-margin*2;w=h*ir;}
+pdf.addImage(img,"JPEG",(pageW-w)/2,(pageH-h)/2,w,h);
+results.push({blob:pdf.output("blob"),name:f.name.replace(/\..+/,".pdf")});
 }
-files=out;render();
+showLoading(false);
 }
 
-/* ===== PDF → IMAGE ===== */
+/* PDF → IMAGE */
+pdfInput.onchange=()=>{
+pdfGrid.innerHTML="";
+[...pdfInput.files].forEach(f=>{
+pdfGrid.innerHTML+=`
+<div class="file">
+<img src="https://cdn-icons-png.flaticon.com/512/337/337946.png">
+<div class="file-name">${f.name}</div>
+</div>`;
+});
+};
+
 async function convertPdf(){
-const out=[];
-for(const f of files){
-const pdf=await pdfjsLib.getDocument(URL.createObjectURL(f.blob)).promise;
+showLoading(true);
+results=[];
+pdfGrid.innerHTML="";
+for(const file of pdfInput.files){
+const buffer=await file.arrayBuffer();
+const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
+const scale=150/72;
 for(let i=1;i<=pdf.numPages;i++){
-const p=await pdf.getPage(i);
+const page=await pdf.getPage(i);
+const vp=page.getViewport({scale});
 const c=document.createElement("canvas");
-const v=p.getViewport({scale:1.5});
-c.width=v.width;c.height=v.height;
-await p.render({canvasContext:c.getContext("2d"),viewport:v}).promise;
-const b=await new Promise(r=>c.toBlob(r,"image/jpeg",0.85));
-out.push({name:`${f.name}_p${i}.jpg`,blob:b,type:"image",url:URL.createObjectURL(b)});
-}}
-files=out;render();
+c.width=vp.width;c.height=vp.height;
+await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.92));
+const name=`${file.name.replace(/\.pdf$/i,"")}_page_${i}.jpg`;
+results.push({blob,name});
+pdfGrid.innerHTML+=`
+<div class="file">
+<img src="${URL.createObjectURL(blob)}">
+<div class="file-name">${name}</div>
+</div>`;
+}
+}
+showLoading(false);
 }
 
-/* ===== COMPRESS PDF ===== */
-async function compressPdf(){
-const f=files[0];
-const pdf=await pdfjsLib.getDocument(URL.createObjectURL(f.blob)).promise;
-const out=new jsPDF();
-for(let i=1;i<=pdf.numPages;i++){
-const p=await pdf.getPage(i);
-const c=document.createElement("canvas");
-const v=p.getViewport({scale:1.2});
-c.width=v.width;c.height=v.height;
-await p.render({canvasContext:c.getContext("2d"),viewport:v}).promise;
-const img=c.toDataURL("image/jpeg",0.7);
-if(i>1) out.addPage();
-out.addImage(img,"JPEG",10,10,190,277,"","FAST");
-}
-files=[{name:"compressed_"+f.name,blob:out.output("blob")}];
-render();
-}
+/* WORD → PDF */
+wordInput.onchange=()=>{
+wordGrid.innerHTML=`
+<div class="file">
+<img src="https://cdn-icons-png.flaticon.com/512/337/337932.png">
+<div class="file-name">${wordInput.files[0].name}</div>
+</div>`;
+};
 
-/* ===== WORD ===== */
 async function convertWord(){
-const f=files[0];
-const ab=await f.blob.arrayBuffer();
-const r=await mammoth.extractRawText({arrayBuffer:ab});
-const pdf=new jsPDF();
-pdf.text(r.value,10,10,{maxWidth:180});
-files=[{name:f.name.replace(/\..+/,"")+".pdf",blob:pdf.output("blob")}];
-render();
+showLoading(true);
+const buf=await wordInput.files[0].arrayBuffer();
+const {value:html}=await mammoth.convertToHtml({arrayBuffer:buf});
+const box=document.createElement("div");
+box.className="word-content";
+box.innerHTML=html;
+document.body.appendChild(box);
+const pdf=new jsPDF("p","mm","a4");
+pdf.html(box,{
+margin:[15,15,15,15],
+autoPaging:"text",
+html2canvas:{scale:1.2},
+callback:()=>{
+document.body.removeChild(box);
+results=[{blob:pdf.output("blob"),name:wordInput.files[0].name.replace(/\..+/,".pdf")}];
+showLoading(false);
+}
+});
 }
 
-/* ===== DOWNLOAD ===== */
-async function download(){
-if(!files.length)return alert("Không có file");
-if(isMobile()){
-for(const f of files){ saveAs(f.blob,f.name); await new Promise(r=>setTimeout(r,300)); }
-}else{
-if(files.length===1) return saveAs(files[0].blob,files[0].name);
+/* DOWNLOAD */
+function download(){
+if(!results.length) return alert("Chưa có file");
+if(results.length===1) return saveAs(results[0].blob,results[0].name);
 const zip=new JSZip();
-files.forEach(f=>zip.file(f.name,f.blob));
-saveAs(await zip.generateAsync({type:"blob"}),"files.zip");
+results.forEach(f=>zip.file(f.name,f.blob));
+zip.generateAsync({type:"blob"}).then(b=>saveAs(b,"files.zip"));
 }
+
+/* PDF PAGE 2 AUTO */
+pdfPage2Drop.ondragover=e=>e.preventDefault();
+pdfPage2Drop.ondrop=async e=>{
+e.preventDefault();
+pdfPage2Input.files=e.dataTransfer.files;
+await convertPdfPage2();
+autoDownloadPage2();
+};
+
+async function convertPdfPage2(){
+pdfPage2Results=[];
+pdfPage2Grid.innerHTML="";
+for(const file of pdfPage2Input.files){
+const buffer=await file.arrayBuffer();
+const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
+if(pdf.numPages<2) continue;
+const page=await pdf.getPage(2);
+const vp=page.getViewport({scale:300/72});
+const c=document.createElement("canvas");
+c.width=vp.width;c.height=vp.height;
+await page.render({canvasContext:c.getContext("2d"),viewport:vp}).promise;
+const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",0.95));
+const name=file.name.replace(/\.pdf$/i,".jpg");
+pdfPage2Results.push({blob,name});
+pdfPage2Grid.innerHTML+=`
+<div class="file">
+<img src="${URL.createObjectURL(blob)}">
+<div class="file-name">${name}</div>
+</div>`;
+}
+}
+
+async function autoDownloadPage2(){
+if(!pdfPage2Results.length) return;
+if(pdfPage2Results.length===1)
+return saveAs(pdfPage2Results[0].blob,pdfPage2Results[0].name);
+const zip=new JSZip();
+pdfPage2Results.forEach(f=>zip.file(f.name,f.blob));
+saveAs(await zip.generateAsync({type:"blob"}),"PDF_Page2_Images.zip");
 }
 </script>
+
 </body>
 </html>
